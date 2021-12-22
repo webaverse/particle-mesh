@@ -111,11 +111,11 @@ export default e => {
 
   e.waitUntil((async () => {
     const video = document.createElement('video');
-
-    video.src = `${baseUrl}Smoke_01.mov.webm`;
     video.muted = true;
     video.loop = false;
     // video.controls = true;
+    video.crossOrigin = 'Anonymous';
+    video.src = `${baseUrl}Smoke_01.mov.webm`;
 
     await new Promise((resolve, reject) => {
       video.addEventListener('canplaythrough', resolve, {once: true});
