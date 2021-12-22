@@ -111,65 +111,66 @@ export default e => {
 
   e.waitUntil((async () => {
     const video = document.createElement('video');
-    video.addEventListener('canplaythrough', e => {
-      console.log('can play through');
 
-      const canvas = document.createElement('canvas');
-      canvas.width = canvasSize;
-      canvas.height = canvasSize;
-      const ctx = canvas.getContext('2d');
-      
-      /* document.body.appendChild(canvas);
-      canvas.style.cssText = `\
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 1024px;
-        height: 1024px;
-        z-index: 1;
-      `; */
-
-      // document.body.appendChild(video);
-      // video.play();
-
-      let frame = 0;
-      const captureFrameRate = 1/30;
-      const _recurse = async () => {
-        // if (!video.paused) {
-          const currentTime = frame++ * captureFrameRate;
-          video.currentTime = currentTime;
-          if (currentTime < video.duration) {
-            console.log('wait for frame', video.currentTime, video.duration);
-            await new Promise(accept => {
-              video.requestVideoFrameCallback(accept);
-            });
-
-            const x = frame % rowSize;
-            const y = Math.floor(frame / rowSize);
-            ctx.drawImage(video, x * frameSize, y * frameSize, frameSize, frameSize);
-
-            console.log('frame', frame);
-
-            _recurse();
-          } else {
-            console.log('video done', currentTime);
-
-            texture.image = canvas;
-            texture.needsUpdate = true;
-          }
-        /* } else {
-          console.log('frame end');
-        } */
-      };
-      _recurse();
-    }, {once: true});
-    video.onerror = err => {
-      console.warn('video load error', err);
-    };
     video.src = `${baseUrl}Smoke_01.mov.webm`;
     video.muted = true;
     video.loop = false;
-    video.controls = true;
+    // video.controls = true;
+
+    await new Promise((resolve, reject) => {
+      video.addEventListener('canplaythrough', resolve, {once: true});
+      video.addEventListener('error', reject, {once: true});
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    const ctx = canvas.getContext('2d');
+    
+    /* document.body.appendChild(canvas);
+    canvas.style.cssText = `\
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1024px;
+      height: 1024px;
+      z-index: 1;
+    `; */
+
+    // document.body.appendChild(video);
+    // video.play();
+
+    let frame = 0;
+    const captureFrameRate = 1/30;
+    const _recurse = async () => {
+      // if (!video.paused) {
+        const currentTime = frame++ * captureFrameRate;
+        video.currentTime = currentTime;
+        if (currentTime < video.duration) {
+          // console.log('wait for frame', video.currentTime, video.duration);
+          await new Promise(accept => {
+            video.requestVideoFrameCallback(accept);
+          });
+
+          const x = frame % rowSize;
+          const y = Math.floor(frame / rowSize);
+          ctx.drawImage(video, x * frameSize, y * frameSize, frameSize, frameSize);
+
+          // console.log('frame', frame);
+
+          _recurse();
+        } else {
+          // console.log('video done', currentTime);
+
+          texture.image = canvas;
+          texture.needsUpdate = true;
+        }
+      /* } else {
+        console.log('frame end');
+      } */
+    };
+    _recurse();
+    
     /* video.style.cssText = `\
       position: absolute;
       top: 0;
