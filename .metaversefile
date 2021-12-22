@@ -1,0 +1,7 @@
+{
+  "name": "particle-mesh",
+  "start_url": "index.js",
+  "components": {
+    "activate": true
+  }
+}
