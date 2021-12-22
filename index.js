@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+// import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import easing from './easing.js';
 import metaversefile from 'metaversefile';
-import {getCaretAtPoint} from 'troika-three-text';
+// import {getCaretAtPoint} from 'troika-three-text';
 const {useApp, useInternals, useGeometries, useMaterials, useFrame, useActivate, useLoaders, usePhysics, useTextInternal, addTrackedApp, useDefaultModules, useCleanup} = metaversefile;
+
+const baseUrl = import.meta.url.replace(/(\/)[^\/\\]*$/, '$1');
 
 const localVector = new THREE.Vector3();
 const localVector2 = new THREE.Vector3();
@@ -15,166 +17,167 @@ export default e => {
   const physics = usePhysics();
   // const {CapsuleGeometry} = useGeometries();
   const {WebaverseShaderMaterial} = useMaterials();
-  const Text = useTextInternal();
+  // const Text = useTextInternal();
 
-  const redMaterial = new WebaverseShaderMaterial({
+  const canvasSize = 4096;
+  const frameSize = 512;
+  const rowSize = Math.floor(canvasSize/frameSize);
+  const maxNumFrames = rowSize * rowSize;
+
+  const texture = new THREE.Texture();
+  texture.anisotropy = 16;
+  const particleGeometry = new THREE.PlaneBufferGeometry(1, 1);
+  const particleMaterial = new WebaverseShaderMaterial({
     uniforms: {
       uTime: {
         value: 0,
+        needsUpdate: true,
+      },
+      uTex: {
+        value: texture,
+        needsUpdate: true,
       },
     },
     vertexShader: `\
+      precision highp float;
+      precision highp int;
+
       uniform float uTime;
-      varying vec3 vPosition;
+      // varying vec3 vPosition;
       varying vec2 vUv;
-      attribute float characterIndex;
+
+      /* float getBezierT(float x, float a, float b, float c, float d) {
+        return float(sqrt(3.) *
+          sqrt(-4. * b * d + 4. * b * x + 3. * c * c + 2. * c * d - 8. * c * x - d * d + 4. * d * x)
+            + 6. * b - 9. * c + 3. * d)
+            / (6. * (b - 2. * c + d));
+      }
+      float easing(float x) {
+        return getBezierT(x, 0., 1., 0., 1.);
+      }
+      float easing2(float x) {
+        return easing(easing(x));
+      } */
 
       void main() {
-        vPosition = vPosition;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
         vUv = uv;
-        
-        const float rate = 1.5;
-        const float range = 1.;
-
-        float t = min(max(mod(uTime, 1.) - characterIndex*0.08, 0.), 1.);
-        t = pow(t, 0.75);
-        const float a = -20.;
-        const float v = 4.;
-        float y = max(0.5 * a * pow(t, 2.) + v * t, 0.);
-        y *= 0.5;
-
-        /* float characterFactorY = characterIndex * PI * 0.25;
-        float timeFactorY = uTime * PI * 2. * rate;
-        float factor = characterFactorY + timeFactorY;
-        float sinFactor = 1. + sin(factor)*0.5;
-        float y = pow(sinFactor, 0.2) * range; */
-
-        vec3 p = position + vec3(0, y, 0);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        // vPosition = position;
       }
     `,
     fragmentShader: `\
-      varying vec3 vPosition;
+      precision highp float;
+      precision highp int;
+
+      #define PI 3.1415926535897932384626433832795
+
+      uniform float uTime;
+      uniform sampler2D uTex;
+      // varying vec3 vPosition;
       varying vec2 vUv;
-      // uniform vec3 color;
+
+      const vec3 lineColor1 = vec3(${new THREE.Color(0x29b6f6).toArray().join(', ')});
+      const vec3 lineColor2 = vec3(${new THREE.Color(0x0288d1).toArray().join(', ')});
+      const vec3 lineColor3 = vec3(${new THREE.Color(0xec407a).toArray().join(', ')});
+      const vec3 lineColor4 = vec3(${new THREE.Color(0xc2185b).toArray().join(', ')});
+
       void main() {
-        gl_FragColor = vec4(vUv, 0., 1.0);
+        const float maxNumFrames = ${maxNumFrames.toFixed(8)};
+        const float rowSize = ${rowSize.toFixed(8)};
+
+        float f = mod(uTime, 1.);
+        float frame = floor(f * maxNumFrames);
+        float x = mod(frame, rowSize);
+        float y = floor(frame / rowSize);
+
+        vec2 uv = vec2(x / rowSize, 1. - y / rowSize) + vUv / rowSize;
+
+        vec4 c = texture2D(uTex, uv);
+        if (c.a > 0.01) {
+          gl_FragColor = c;
+        } else {
+          discard;
+        }
       }
     `,
     side: THREE.DoubleSide,
     transparent: true,
   });
-  async function makeTextMesh(
-    text = '',
-    font = '/fonts/Bangers-Regular.ttf',
-    fontSize = 0.5,
-    anchorX = 'center',
-    anchorY = 'middle',
-    color = 0x000000,
-  ) {
-    const textMesh = new Text();
-    textMesh.material = redMaterial;
-    textMesh.text = text;
-    textMesh.font = font;
-    textMesh.fontSize = fontSize;
-    textMesh.color = color;
-    textMesh.anchorX = anchorX;
-    textMesh.anchorY = anchorY;
-    textMesh.frustumCulled = false;
-    // textMesh.outlineWidth = 0.1;
-    // textMesh.outlineColor = 0x000000;
-    await new Promise((accept, reject) => {
-      textMesh.sync(accept);
-    });
-    const characterIndices = new Float32Array(textMesh.geometry.attributes.aTroikaGlyphIndex.array.length);
-    for (let i = 0; i < characterIndices.length; i++) {
-      characterIndices[i] = i;
-    }
-    const characterIndexAttribute = new THREE.InstancedBufferAttribute(characterIndices, 1, false);
-    textMesh.geometry.setAttribute('characterIndex', characterIndexAttribute);
-    return textMesh;
-  }
+  const particleMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+  particleMesh.position.y = 1;
+  particleMesh.updateMatrixWorld();
+  particleMesh.frustumCulled = false;
+  scene.add(particleMesh);
 
-  /* const numberStrings = Array(10);
-  for (let i = 0; i < numberStrings.length; i++) {
-    numberStrings[i] = i + '';
-  } */
-  /* const numberStrings = ['271'];
-  let numberMeshes = null;
-  let numberGeometries = null;
-  let numberMaterials = null;
   e.waitUntil((async () => {
-    numberMeshes = await Promise.all(numberStrings.map(async s => {
-      // console.log('wait 1');
-      const textMesh = await makeTextMesh(s);
-      // console.log('wait 2');
-      return textMesh;
-    }));
-    numberGeometries = numberMeshes.map(m => m.geometry);
-    numberMaterials = numberMeshes.map(m => m.geometry);
+    const video = document.createElement('video');
+    video.addEventListener('canplaythrough', e => {
+      console.log('can play through');
 
-    const tempScene = new THREE.Scene();
-    for (const numberMesh of numberMeshes) {
-      tempScene.add(numberMesh);
-    }
-    renderer.compile(tempScene, camera);
-    for (const numberMesh of numberMeshes) {
-      tempScene.remove(numberMesh);
-    }
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext('2d');
+      
+      /* document.body.appendChild(canvas);
+      canvas.style.cssText = `\
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1024px;
+        height: 1024px;
+        z-index: 1;
+      `; */
 
-    window.numberMeshes = numberMeshes;
-    window.numberGeometries = numberGeometries;
-    window.numberMaterials = numberMaterials;
-  })()); */
+      // document.body.appendChild(video);
+      // video.play();
 
-  let textMeshSpec = null;
-  /* const textMesh = makeTextMesh('');
-  textMesh.frustumCulled = false;
-  scene.add(textMesh); */
+      let frame = 0;
+      const captureFrameRate = 1/30;
+      const _recurse = async () => {
+        // if (!video.paused) {
+          const currentTime = frame++ * captureFrameRate;
+          video.currentTime = currentTime;
+          if (currentTime < video.duration) {
+            console.log('wait for frame', video.currentTime, video.duration);
+            await new Promise(accept => {
+              video.requestVideoFrameCallback(accept);
+            });
 
-  let running = false;
-  useFrame(async ({timestamp}) => {
-    // console.log('got', {numberGeometries, numberMaterial});
-    if (!running) {
-      running = true;
+            const x = frame % rowSize;
+            const y = Math.floor(frame / rowSize);
+            ctx.drawImage(video, x * frameSize, y * frameSize, frameSize, frameSize);
 
-      if (textMeshSpec && timestamp >= textMeshSpec.endTime) {
-        for (const textMesh of textMeshSpec.textMeshes) {
-          scene.remove(textMesh);
-        }
-        textMeshSpec = null;
-      }
-      if (!textMeshSpec) {
-        const text = Math.floor(Math.random() * 2000) + '';
-        const textMesh = await makeTextMesh(text);
-        textMesh.position.y = 2;
-        textMesh.frustumCulled = false;
-        textMesh.updateMatrixWorld();
-        scene.add(textMesh);
+            console.log('frame', frame);
 
-        /* const textMesh = makeTextMesh(text, undefined, 1, 'center', 'middle', 0xffffff);
-        setTimeout(() => {
-          console.log('got', textMesh.geometry.attributes.aTroikaGlyphBounds?.array.length);
-        }, 1000); */
-        const textMeshes = [textMesh];
-        textMeshSpec = {
-          text,
-          textMeshes,
-          startTime: timestamp,
-          endTime: timestamp + 1000,
-        };
-        window.textMeshSpec = textMeshSpec;
-      }
+            _recurse();
+          } else {
+            console.log('video done', currentTime);
 
-      running = false;
-    }
-
-    if (textMeshSpec) {
-      for (const textMesh of textMeshSpec.textMeshes) {
-        textMesh.material.uniforms.uTime.value = (timestamp - textMeshSpec.startTime) / 1000;
-      }
-    }
-  });
+            texture.image = canvas;
+            texture.needsUpdate = true;
+          }
+        /* } else {
+          console.log('frame end');
+        } */
+      };
+      _recurse();
+    }, {once: true});
+    video.onerror = err => {
+      console.warn('video load error', err);
+    };
+    video.src = `${baseUrl}Smoke_01.mov.webm`;
+    video.muted = true;
+    video.loop = false;
+    video.controls = true;
+    /* video.style.cssText = `\
+      position: absolute;
+      top: 0;
+      left: 0;
+    `; */
+    // console.log('got video', video);
+    //window.video = video;
+  })());
 
   const physicsIds = [];
 
@@ -185,6 +188,9 @@ export default e => {
   }); */
   useFrame(({timestamp, timeDiff}) => {
     // frameCb && frameCb();
+
+    particleMesh.material.uniforms.uTime.value = timestamp / 1000;
+    particleMesh.material.uniforms.uTime.needsUpdate = true;
 
     // material.uniforms.time.value = (performance.now() / 1000) % 1;
   });
