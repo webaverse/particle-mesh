@@ -96,12 +96,17 @@ export default e => {
         vec4 alphaColor = texture2D(uTex, vec2(0.));
 
         gl_FragColor = texture2D(uTex, uv);
-        gl_FragColor.a = min(max(pow(length(gl_FragColor.rgb - alphaColor.rgb), 5.), 0.), 1.);
+        float alphaDistance = length(gl_FragColor.rgb - alphaColor.rgb);
+        alphaDistance = pow(alphaDistance, .01);
+        gl_FragColor.a = min(max(alphaDistance, 0.), 1.);
+        if (gl_FragColor.a < 0.01) {
+          discard;
+        }
       }
     `,
     side: THREE.DoubleSide,
     transparent: true,
-    alphaTest: 0.5,
+    // alphaTest: 0.5,
   });
   const particleMesh = new THREE.Mesh(particleGeometry, particleMaterial);
   particleMesh.position.y = 1;
