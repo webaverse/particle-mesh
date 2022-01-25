@@ -111,8 +111,17 @@ export default e => {
   particleMesh.updateMatrixWorld();
 
   e.waitUntil((async () => {
+    const fileSpecs = await (async () => {
+      const res = await fetch(`https://webaverse.github.io/fx-textures/fx-files.json`);
+      const json = await res.json();
+      return json;
+    })();
+    // console.log('got file specs', fileSpecs);
+    const fileSpec = fileSpecs[0];
+    const {name, numFrames} = fileSpec;
+
     const texture = await new Promise((accept, reject) => {
-      const u = `/fx/Elements - Brush 001 Liquid Right noRSZ.webm-spritesheet.ktx2`;
+      const u = `https://webaverse.github.io/fx-textures/${name + '-spritesheet.ktx2'}`;
       ktx2Loader.load(u, accept, function onProgress() {}, reject);
     });
     console.log('got tex', texture);
