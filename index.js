@@ -97,7 +97,7 @@ export default e => {
 
         gl_FragColor = texture2D(uTex, uv);
         float alphaDistance = length(gl_FragColor.rgb - alphaColor.rgb);
-        alphaDistance = pow(alphaDistance, .01);
+        alphaDistance = pow(alphaDistance, .001);
         gl_FragColor.a = min(max(alphaDistance, 0.), 1.);
         if (gl_FragColor.a < 0.01) {
           discard;
@@ -106,7 +106,7 @@ export default e => {
     `,
     side: THREE.DoubleSide,
     transparent: true,
-    // alphaTest: 0.5,
+    alphaTest: 0.5,
   });
   const particleMesh = new THREE.Mesh(particleGeometry, particleMaterial);
   particleMesh.position.y = 1;
