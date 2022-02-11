@@ -132,7 +132,7 @@ export default e => {
     // console.log('got file specs', fileSpecs);
     // const fileSpec = fileSpecs[0];
 
-    console.log('got file specs', fileSpecs);
+    // console.log('got file specs', fileSpecs);
     const startIndex = fileSpecs.findIndex(({name}) => name === 'Elements - Energy 017 Charge Up noCT noRSZ.mov');
     const numParticles = 1;
     for (let i = startIndex; i < fileSpecs.length && (i - startIndex) < numParticles; i++) {
