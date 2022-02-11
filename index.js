@@ -94,7 +94,6 @@ export default e => {
           const float rowSize = ${rowSize.toFixed(8)};
   
           float f = mod(uTime, 1.);
-          // float frame = floor(f * maxNumFrames);
           float frame = floor(f * uNumFrames);
           float x = mod(frame, rowSize);
           float y = floor(frame / rowSize);
@@ -104,12 +103,9 @@ export default e => {
           vec4 alphaColor = texture2D(uTex, vec2(0.));
   
           gl_FragColor = texture2D(uTex, uv);
-          float alphaDistance = length(gl_FragColor.rgb - alphaColor.rgb);
-          // alphaDistance = pow(alphaDistance, .001);
-          gl_FragColor.a = min(max(alphaDistance * 3., 0.), 1.);
-          /* if (gl_FragColor.a < 0.999) {
+          if (gl_FragColor.a < 0.5) {
             discard;
-          } */
+          }
         }
       `,
       side: THREE.DoubleSide,
