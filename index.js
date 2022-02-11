@@ -125,20 +125,21 @@ export default e => {
   const particleMeshes = [];
   ((async () => {
     const fileSpecs = await (async () => {
-      const res = await fetch(`https://webaverse.github.io/fx-textures/fx-files.json`);
+      const res = await fetch(`/fx-textures/fx-files.json`);
       const json = await res.json();
       return json;
     })();
     // console.log('got file specs', fileSpecs);
     // const fileSpec = fileSpecs[0];
 
-    const startIndex = 30;
-    const numParticles = 30;
+    console.log('got file specs', fileSpecs);
+    const startIndex = fileSpecs.findIndex(({name}) => name === 'Elements - Energy 017 Charge Up noCT noRSZ.mov');
+    const numParticles = 1;
     for (let i = startIndex; i < fileSpecs.length && (i - startIndex) < numParticles; i++) {
       const fileSpec = fileSpecs[i];
       const {name, numFrames} = fileSpec;
       const texture = await new Promise((accept, reject) => {
-        const u = `https://webaverse.github.io/fx-textures/${name + '-spritesheet.ktx2'}`;
+        const u = `/fx-textures/${name}-spritesheet.ktx2`;
         ktx2Loader.load(u, accept, function onProgress() {}, reject);
       });
       // console.log('got tex', texture);
