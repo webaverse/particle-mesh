@@ -2,7 +2,6 @@ import * as THREE from 'three';
 // import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // import easing from './easing.js';
 import metaversefile from 'metaversefile';
-// import {getCaretAtPoint} from 'troika-three-text';
 const {useApp, useInternals, useMaterials, useFrame, useActivate, useLoaders, useScene, usePhysics, useDefaultModules, useCleanup} = metaversefile;
 
 const baseUrl = import.meta.url.replace(/(\/)[^\/\\]*$/, '$1');
@@ -198,11 +197,6 @@ class ParticleMesh extends THREE.InstancedMesh {
     this.particles.push(particle);
     return particle;
   }
-  /* updateParticle(particle) {
-    particle.updateMatrixWorld();
-
-    this.flushParticles();
-  } */
   flushParticles() {
     for (let i = 0; i < this.particles.length; i++) {
       const particle = this.particles[i];
@@ -236,37 +230,6 @@ export default e => {
     const particle = particleMesh.addParticle();
     return particle;
   };
-  /* ((async () => {
-    // console.log('got file specs', fileSpecs);
-    // const fileSpec = fileSpecs[0];
-
-    // console.log('got file specs', fileSpecs);
-    const startIndex = fileSpecs.findIndex(({name}) => name === 'Elements - Energy 017 Charge Up noCT noRSZ.mov');
-    const numParticles = 1;
-    for (let i = startIndex; i < fileSpecs.length && (i - startIndex) < numParticles; i++) {
-      const fileSpec = fileSpecs[i];
-      const {name, numFrames} = fileSpec;
-      const texture = await new Promise((accept, reject) => {
-        const u = `/fx-textures/${name}-spritesheet.ktx2`;
-        ktx2Loader.load(u, accept, function onProgress() {}, reject);
-      });
-      texture.anisotropy = 16;
-      const material = _makeParticleMaterial({
-        texture,
-        numFrames,
-      });
-      
-      const particleMesh = new ParticleMesh(particleGeometry, material);
-      particleMesh.position.x = i - startIndex;
-      particleMesh.position.y = 1;
-      particleMesh.updateMatrixWorld();
-      particleMesh.frustumCulled = false;
-      app.add(particleMesh);
-      particleMesh.updateMatrixWorld();
-
-      particleMeshes.push(particleMesh);
-    }
-  })()); */
 
   {
     const particle = app.addParticle('Elements - Energy 017 Charge Up noCT noRSZ.mov');
