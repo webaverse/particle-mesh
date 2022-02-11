@@ -114,7 +114,7 @@ export default e => {
       `,
       side: THREE.DoubleSide,
       transparent: true,
-      // alphaTest: 0.5,
+      // alphaTest: 0.9,
     });
   };
 
