@@ -19,25 +19,12 @@ const frameSize = 512;
 const rowSize = Math.floor(canvasSize/frameSize);
 const maxNumFrames = rowSize * rowSize;
 
-const planeGeometry = new THREE.PlaneBufferGeometry(1, 1);
-const particleGeometry = new THREE.BufferGeometry();
-const positions = new Float32Array(maxParticles * planeGeometry.attributes.position.array.length);
-particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-const normals = new Float32Array(maxParticles * planeGeometry.attributes.normal.array.length);
-particleGeometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
-const uvs = new Float32Array(maxParticles * planeGeometry.attributes.uv.array.length);
-particleGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-const indices = new Uint16Array(maxParticles * planeGeometry.index.array.length);
-particleGeometry.setIndex(new THREE.BufferAttribute(indices, 1));
-for (let i = 0; i < maxParticles; i++) {
-  // position starts zeroed and is fileld by the mesh class
-  // particleGeometry.attributes.position.array.fill(planeGeometry.attributes.position.array, i * planeGeometry.attributes.position.count);
-  particleGeometry.attributes.normal.array.set(planeGeometry.attributes.normal.array, i * planeGeometry.attributes.normal.array.length);
-  particleGeometry.attributes.uv.array.set(planeGeometry.attributes.uv.array, i * planeGeometry.attributes.uv.array.length);
-  for (let j = 0; j < planeGeometry.index.count; j++) {
-    particleGeometry.index.array[i * planeGeometry.index.count + j] = planeGeometry.index.array[j] + i * planeGeometry.attributes.position.array.length;
-  }
+const planeGeometryNonInstanced = new THREE.PlaneBufferGeometry(1, 1);
+const planeGeometry = new THREE.InstancedBufferGeometry();
+for (const k in planeGeometryNonInstanced.attributes) {
+  planeGeometry.setAttribute(k, planeGeometryNonInstanced.attributes[k]);
 }
+planeGeometry.index = planeGeometryNonInstanced.index;
 
 let fileSpecs = [];
 const fileSpecsLoadPromise = (async () => {
@@ -87,6 +74,8 @@ const _makeParticleMaterial = name => {
       precision highp int;
 
       uniform float uTime;
+      attribute vec3 p;
+      attribute vec4 q;
       // varying vec3 vPosition;
       varying vec2 vUv;
 
@@ -103,8 +92,29 @@ const _makeParticleMaterial = name => {
         return easing(easing(x));
       } */
 
+      vec4 quat_from_axis_angle(vec3 axis, float angle) { 
+        vec4 qr;
+        float half_angle = (angle * 0.5) * PI;
+        qr.x = axis.x * sin(half_angle);
+        qr.y = axis.y * sin(half_angle);
+        qr.z = axis.z * sin(half_angle);
+        qr.w = cos(half_angle);
+        return qr;
+      }
+      vec3 rotateVecQuat(vec3 position, vec4 q) {
+        vec3 v = position.xyz;
+        return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+      }
+      /* vec3 rotate_vertex_position(vec3 position, vec3 axis, float angle) { 
+        vec4 q = quat_from_axis_angle(axis, angle);
+        return rotateVecQuat(position, q);
+      } */
+
       void main() {
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+        vec3 pos = position;
+        pos = rotateVecQuat(pos, q);
+        pos += p;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.);
         vUv = uv;
         // vPosition = position;
       }
@@ -121,10 +131,10 @@ const _makeParticleMaterial = name => {
       // varying vec3 vPosition;
       varying vec2 vUv;
 
-      const vec3 lineColor1 = vec3(${new THREE.Color(0x29b6f6).toArray().join(', ')});
-      const vec3 lineColor2 = vec3(${new THREE.Color(0x0288d1).toArray().join(', ')});
-      const vec3 lineColor3 = vec3(${new THREE.Color(0xec407a).toArray().join(', ')});
-      const vec3 lineColor4 = vec3(${new THREE.Color(0xc2185b).toArray().join(', ')});
+      // const vec3 lineColor1 = vec3(${new THREE.Color(0x29b6f6).toArray().join(', ')});
+      // const vec3 lineColor2 = vec3(${new THREE.Color(0x0288d1).toArray().join(', ')});
+      // const vec3 lineColor3 = vec3(${new THREE.Color(0xec407a).toArray().join(', ')});
+      // const vec3 lineColor4 = vec3(${new THREE.Color(0xc2185b).toArray().join(', ')});
 
       void main() {
         // const float maxNumFrames = ${maxNumFrames.toFixed(8)};
@@ -161,12 +171,14 @@ class Particle extends THREE.Object3D {
     this.parent = parent;
   }
   update() {
-    this.parent.updateParticle(this);
+    this.parent.flushParticles();
   }
 }
 class ParticleMesh extends THREE.InstancedMesh {
   constructor(name) {
-    const geometry = particleGeometry.clone();
+    const geometry = planeGeometry.clone();
+    geometry.setAttribute('p', new THREE.InstancedBufferAttribute(new Float32Array(maxParticles * 3), 3));
+    geometry.setAttribute('q', new THREE.InstancedBufferAttribute(new Float32Array(maxParticles * 4), 4));
     const material = _makeParticleMaterial(name);
     material.promise.then(() => {
       this.visible = true;
@@ -175,48 +187,32 @@ class ParticleMesh extends THREE.InstancedMesh {
 
     this.name = name;
     this.particles = [];
-    this.freeList = new Uint8Array(maxParticles);
+    // this.freeList = new Uint8Array(maxParticles);
+    this.count = 0;
     this.frustumCulled = false;
     this.visible = false;
   }
-  allocIndex() {
-    for (let i = 0; i < maxParticles; i++) {
-      if (this.freeList[i] === 0) {
-        this.freeList[i] = 1;
-        return i;
-      }
-    }
-    return -1;
-  }
-  freeIndex(index) {
-    this.freeList[index] = 0;
-  }
   addParticle() {
-    const index = this.allocIndex();
+    const index = this.particles.length;
     const particle = new Particle(index, this);
     this.particles.push(particle);
     return particle;
   }
-  updateParticle(particle) {
+  /* updateParticle(particle) {
     particle.updateMatrixWorld();
 
-    // copy over the particle, with the approprite matrix transform
-    for (let i = 0; i < planeGeometry.attributes.position.count; i++) {
-      const index = particle.index * planeGeometry.attributes.position.count + i;
-
-      localVector.fromArray(planeGeometry.attributes.position.array, index*3)
-        .applyMatrix4(particle.matrixWorld)
-        .toArray(this.geometry.attributes.position.array, index*3);
-      localVector.fromArray(planeGeometry.attributes.normal.array, index*3)
-        .applyQuaternion(localQuaternion.setFromRotationMatrix(particle.matrixWorld))
-        .toArray(this.geometry.attributes.normal.array, index*3);
-      localVector2D.fromArray(planeGeometry.attributes.uv.array, index*2)
-        .toArray(this.geometry.attributes.uv.array, index*2);
-
-      this.geometry.attributes.position.needsUpdate = true;
-      this.geometry.attributes.normal.needsUpdate = true;
-      this.geometry.attributes.uv.needsUpdate = true;
+    this.flushParticles();
+  } */
+  flushParticles() {
+    for (let i = 0; i < this.particles.length; i++) {
+      const particle = this.particles[i];
+      this.geometry.attributes.p.setXYZ(particle.index, particle.position.x, particle.position.y, particle.position.z);
+      this.geometry.attributes.q.setXYZW(particle.index, particle.quaternion.x, particle.quaternion.y, particle.quaternion.z, particle.quaternion.w);
     }
+    this.geometry.attributes.p.needsUpdate = true;
+    this.geometry.attributes.q.needsUpdate = true;
+
+    this.count = this.particles.length;
   }
 }
 
