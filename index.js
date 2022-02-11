@@ -169,9 +169,6 @@ class Particle extends THREE.Object3D {
     this.index = index;
     this.parent = parent;
   }
-  update() {
-    this.parent.flushParticles();
-  }
 }
 class ParticleMesh extends THREE.InstancedMesh {
   constructor(name) {
@@ -190,20 +187,31 @@ class ParticleMesh extends THREE.InstancedMesh {
     this.count = 0;
     this.frustumCulled = false;
     this.visible = false;
+    this.needsUpdate = false;
+
+    this.onBeforeRender = () => {
+      if (this.needsUpdate) {
+        this.updateGeometry();
+        this.needsUpdate = false;
+      }
+    };
   }
   addParticle() {
     const index = this.particles.length;
     const particle = new Particle(index, this);
     this.particles.push(particle);
+    this.needsUpdate = true;
     return particle;
   }
-  flushParticles() {
+  updateGeometry() {
     for (let i = 0; i < this.particles.length; i++) {
       const particle = this.particles[i];
       this.geometry.attributes.p.setXYZ(particle.index, particle.position.x, particle.position.y, particle.position.z);
       this.geometry.attributes.q.setXYZW(particle.index, particle.quaternion.x, particle.quaternion.y, particle.quaternion.z, particle.quaternion.w);
     }
+    this.geometry.attributes.p.updateRange.count = this.count;
     this.geometry.attributes.p.needsUpdate = true;
+    this.geometry.attributes.q.updateRange.count = this.count;
     this.geometry.attributes.q.needsUpdate = true;
 
     this.count = this.particles.length;
@@ -236,7 +244,6 @@ export default e => {
     particle.position.copy(app.position);
     particle.quaternion.copy(app.quaternion);
     particle.scale.copy(app.scale);
-    particle.update();
   }
 
   const physicsIds = [];
